@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+*.zip
+*.tar.gz
+
+# Environment & Secrets
+.env
+.env.local
+server_id_rsa
+server_key.ppk
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS Files
+.DS_Store
+Thumbs.db

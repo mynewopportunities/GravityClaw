@@ -1,0 +1,18 @@
+Testing model: meta-llama/llama-3.3-70b-instruct:free
+Γ¥î meta-llama/llama-3.3-70b-instruct:free failed: 404 No allowed providers are available for the selected model. (Status: 404)
+---
+Testing model: google/gemma-3-27b-it:free
+Γ¥î google/gemma-3-27b-it:free failed: 404 No allowed providers are available for the selected model. (Status: 404)
+---
+Testing model: arcee-ai/trinity-large-preview:free
+Γ¥î arcee-ai/trinity-large-preview:free failed: 404 No allowed providers are available for the selected model. (Status: 404)
+---
+Testing model: mistralai/mistral-7b-instruct:free
+Γ¥î mistralai/mistral-7b-instruct:free failed: 404 No endpoints found for mistralai/mistral-7b-instruct:free. (Status: 404)
+---
+Testing model: meta-llama/llama-3.1-8b-instruct:free
+Γ¥î meta-llama/llama-3.1-8b-instruct:free failed: 404 No endpoints found for meta-llama/llama-3.1-8b-instruct:free. (Status: 404)
+---
+Testing model: deepseek/deepseek-chat:free
+Γ¥î deepseek/deepseek-chat:free failed: 404 No endpoints found for deepseek/deepseek-chat:free. (Status: 404)
+---

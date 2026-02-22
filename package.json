@@ -1,0 +1,28 @@
+{
+    "name": "gravity-claw",
+    "version": "1.0.0",
+    "description": "Lean, secure personal AI agent — Telegram + LLM + agentic tool loop",
+    "type": "module",
+    "scripts": {
+        "dev": "tsx watch src/index.ts",
+        "start": "tsx src/index.ts",
+        "typecheck": "tsc --noEmit"
+    },
+    "engines": {
+        "node": ">=20.0.0"
+    },
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.26.0",
+        "better-sqlite3": "^12.6.2",
+        "date-fns": "^4.1.0",
+        "dotenv": "^16.4.7",
+        "grammy": "^1.35.0",
+        "openai": "^4.85.4"
+    },
+    "devDependencies": {
+        "@types/better-sqlite3": "^7.6.13",
+        "@types/node": "^22.13.4",
+        "tsx": "^4.19.3",
+        "typescript": "^5.7.3"
+    }
+}
