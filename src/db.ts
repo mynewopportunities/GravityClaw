@@ -24,7 +24,7 @@ db.pragma("foreign_keys = ON");
 db.exec(`
     CREATE TABLE IF NOT EXISTS conversation_history (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
-        chat_id     INTEGER NOT NULL,
+        chat_id     TEXT    NOT NULL,
         role        TEXT    NOT NULL CHECK(role IN ('system','user','assistant','tool')),
         content     TEXT    NOT NULL,
         tool_name   TEXT,
@@ -36,7 +36,7 @@ db.exec(`
 
     CREATE TABLE IF NOT EXISTS usage_log (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
-        chat_id         INTEGER NOT NULL,
+        chat_id         TEXT    NOT NULL,
         model           TEXT    NOT NULL,
         input_tokens    INTEGER NOT NULL DEFAULT 0,
         output_tokens   INTEGER NOT NULL DEFAULT 0,
@@ -49,7 +49,7 @@ db.exec(`
 
     CREATE TABLE IF NOT EXISTS scheduled_tasks (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
-        chat_id         INTEGER NOT NULL,
+        chat_id         TEXT    NOT NULL,
         type            TEXT    NOT NULL DEFAULT 'reminder',
         message         TEXT    NOT NULL,
         scheduled_at    INTEGER NOT NULL, -- Unix timestamp

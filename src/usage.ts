@@ -26,18 +26,19 @@ function estimateCost(model: string, inputTokens: number, outputTokens: number):
 
 // ── Track a single LLM call ───────────────────────────────
 export function trackUsage(params: {
-    chatId: number;
+    chatId: string | number;
     model: string;
     inputTokens: number;
     outputTokens: number;
     latencyMs: number;
 }): void {
+    const cid = String(params.chatId);
     const cost = estimateCost(params.model, params.inputTokens, params.outputTokens);
     db.prepare(`
         INSERT INTO usage_log (chat_id, model, input_tokens, output_tokens, latency_ms, cost_usd)
         VALUES (?, ?, ?, ?, ?, ?)
     `).run(
-        params.chatId,
+        cid,
         params.model,
         params.inputTokens,
         params.outputTokens,
@@ -47,9 +48,10 @@ export function trackUsage(params: {
 }
 
 // ── Get usage summary ─────────────────────────────────────
-export function getUsageSummary(chatId?: number): string {
-    const whereClause = chatId != null ? "WHERE chat_id = ?" : "";
-    const args = chatId != null ? [chatId] : [];
+export function getUsageSummary(chatId?: string | number): string {
+    const cid = chatId != null ? String(chatId) : null;
+    const whereClause = cid != null ? "WHERE chat_id = ?" : "";
+    const args = cid != null ? [cid] : [];
 
     const totals = db.prepare(`
         SELECT

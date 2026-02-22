@@ -13,14 +13,15 @@ type ChatMessage = OpenAI.ChatCompletionMessageParam;
 const MAX_HISTORY = 40; // Max raw messages to load per chat
 
 // ── Load history for a chat ───────────────────────────────
-export function loadHistory(chatId: number): ChatMessage[] {
+export function loadHistory(chatId: string | number): ChatMessage[] {
+    const cid = String(chatId);
     const rows = db.prepare(`
         SELECT role, content, tool_name, tool_calls
         FROM conversation_history
         WHERE chat_id = ?
         ORDER BY created_at ASC
         LIMIT ?
-    `).all(chatId, MAX_HISTORY) as any[];
+    `).all(cid, MAX_HISTORY) as any[];
 
     return rows.map((row) => {
         // Reconstruct assistant messages with tool_calls
@@ -48,9 +49,10 @@ export function loadHistory(chatId: number): ChatMessage[] {
 
 // ── Save a single message ─────────────────────────────────
 export function saveMessage(
-    chatId: number,
+    chatId: string | number,
     message: ChatMessage
 ): void {
+    const cid = String(chatId);
     const role = message.role;
     let content = "";
     let toolName: string | null = null;
@@ -75,34 +77,38 @@ export function saveMessage(
     db.prepare(`
         INSERT INTO conversation_history (chat_id, role, content, tool_name, tool_calls)
         VALUES (?, ?, ?, ?, ?)
-    `).run(chatId, role, content, toolName, toolCallsJson);
+    `).run(cid, role, content, toolName, toolCallsJson);
 }
 
 // ── Save multiple messages at once ────────────────────────
-export function saveMessages(chatId: number, messages: ChatMessage[]): void {
+export function saveMessages(chatId: string | number, messages: ChatMessage[]): void {
+    const cid = String(chatId);
     const insertMany = db.transaction((msgs: ChatMessage[]) => {
         for (const msg of msgs) {
-            saveMessage(chatId, msg);
+            saveMessage(cid, msg);
         }
     });
     insertMany(messages);
 }
 
 // ── Clear history for a chat ──────────────────────────────
-export function clearHistory(chatId: number): void {
-    db.prepare("DELETE FROM conversation_history WHERE chat_id = ?").run(chatId);
+export function clearHistory(chatId: string | number): void {
+    const cid = String(chatId);
+    db.prepare("DELETE FROM conversation_history WHERE chat_id = ?").run(cid);
 }
 
 // ── Count messages for a chat ─────────────────────────────
-export function countMessages(chatId: number): number {
+export function countMessages(chatId: string | number): number {
+    const cid = String(chatId);
     const row = db.prepare(
         "SELECT COUNT(*) as c FROM conversation_history WHERE chat_id = ?"
-    ).get(chatId) as { c: number };
+    ).get(cid) as { c: number };
     return row.c;
 }
 
 // ── Prune to keep last N messages ────────────────────────
-export function pruneHistory(chatId: number, keepLast: number = 20): number {
+export function pruneHistory(chatId: string | number, keepLast: number = 20): number {
+    const cid = String(chatId);
     const result = db.prepare(`
         DELETE FROM conversation_history
         WHERE chat_id = ? AND id NOT IN (
@@ -111,6 +117,6 @@ export function pruneHistory(chatId: number, keepLast: number = 20): number {
             ORDER BY created_at DESC
             LIMIT ?
         )
-    `).run(chatId, chatId, keepLast);
+    `).run(cid, cid, keepLast);
     return result.changes;
 }

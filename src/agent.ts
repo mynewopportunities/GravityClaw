@@ -53,12 +53,18 @@ Constraints:
 let modelSupportsTools = true; // Assume yes, disable on first failure
 
 // ── Agent Loop ──────────────────────────────────────────
-export async function runAgent(chatId: number, userMessage: string): Promise<string> {
+export async function runAgent(
+    chatId: string | number,
+    userText: string
+): Promise<string> {
+    const callStartTime = Date.now();
+    console.log(`\n  🧠 Agent starting for ${chatId}...`);
+
     // Load persistent history from SQLite
     const history = loadHistory(chatId);
 
     // Add user message (save immediately in case of crash)
-    const userMsg: ChatMessage = { role: "user", content: userMessage };
+    const userMsg: ChatMessage = { role: "user", content: userText };
     saveMessage(chatId, userMsg);
     history.push(userMsg);
 
@@ -70,7 +76,6 @@ export async function runAgent(chatId: number, userMessage: string): Promise<str
 
     const tools = getAllToolSchemas();
     let iterations = 0;
-    const callStartTime = Date.now();
 
     while (iterations < MAX_AGENT_ITERATIONS) {
         iterations++;
