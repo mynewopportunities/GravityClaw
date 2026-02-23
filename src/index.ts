@@ -46,13 +46,15 @@ async function main(): Promise<void> {
     // Initialize MCP Bridge
     await initMcp();
 
-    // Initialize WhatsApp
+    // Initialize WhatsApp (DISABLED PER USER REQUEST)
+    /*
     try {
         const { initWhatsApp } = await import("./whatsapp.js");
         await initWhatsApp();
     } catch (err) {
         console.error("  ❌ WhatsApp failed to start:", err);
     }
+    */
 
     // Start Telegram bot with long-polling (NOT webhooks)
     console.log("  📡 Connecting to Telegram (long-polling)...");
