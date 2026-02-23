@@ -15,6 +15,7 @@ import { bot } from "./bot.js";
 import { initScheduler } from "./scheduler.js";
 import { initMcp } from "./mcp/index.js";
 import { initVectorMemory } from "./vector-memory.js";
+import { initHeartbeat } from "./heartbeat.js";
 
 // ── Initialize SQLite DB (creates tables if needed) ──────
 import "./db.js";
@@ -39,8 +40,9 @@ async function main(): Promise<void> {
     // Initialize Vector Memory (Qdrant)
     await initVectorMemory();
 
-    // Start background scheduler
+    // Start background scheduler & heartbeat
     initScheduler();
+    initHeartbeat();
 
 
     // Initialize MCP Bridge

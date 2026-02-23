@@ -92,7 +92,8 @@ let modelSupportsTools = true; // Assume yes, disable on first failure
 // ── Agent Loop ──────────────────────────────────────────
 export async function runAgent(
     chatId: string | number,
-    userText: string
+    userText: string,
+    options: { skipStorage?: boolean } = {}
 ): Promise<string> {
     console.log(`\n  🧠 Agent starting for ${chatId} | Text: "${userText.substring(0, 50)}..."`);
 
@@ -128,11 +129,13 @@ export async function runAgent(
 
     // 4. Save user message to SQLite immediately (crash-safe)
     const userMsg: ChatMessage = { role: "user", content: userText };
-    saveMessage(chatId, userMsg);
+    if (!options.skipStorage) {
+        saveMessage(chatId, userMsg);
+    }
     history.push(userMsg);
 
     // 5. Store user message in vector DB asynchronously (fire-and-forget)
-    if (VECTOR_MEMORY_ENABLED) {
+    if (VECTOR_MEMORY_ENABLED && !options.skipStorage) {
         rememberMessage(chatId, "user", userText).catch(() => { }); // non-blocking
     }
 
@@ -198,7 +201,7 @@ export async function runAgent(
             saveMessage(chatId, { role: "assistant", content: finalText });
 
             // Store assistant response in vector memory (fire-and-forget)
-            if (VECTOR_MEMORY_ENABLED) {
+            if (VECTOR_MEMORY_ENABLED && !options.skipStorage) {
                 rememberMessage(chatId, "assistant", finalText).catch(() => { });
             }
 

@@ -66,6 +66,10 @@ export const MAX_AGENT_ITERATIONS = parseInt(
 export const QDRANT_URL = optionalEnv("QDRANT_URL", "http://localhost:6333");
 export const VECTOR_MEMORY_ENABLED = optionalEnv("VECTOR_MEMORY_ENABLED", "true") === "true";
 
+// ── Heartbeat (Proactive Messaging) ──────────────────────
+export const HEARTBEAT_ENABLED = optionalEnv("HEARTBEAT_ENABLED", "true") === "true";
+export const HEARTBEAT_TIME = optionalEnv("HEARTBEAT_TIME", "08:00"); // 24h format HH:mm
+
 // ── WhatsApp Whitelist ──────────────────────────────────
 const rawWaIds = optionalEnv("WHATSAPP_ALLOWED_NUMBERS", "");
 export const WHATSAPP_ALLOWED_NUMBERS: string[] = rawWaIds
