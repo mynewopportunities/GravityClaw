@@ -25,5 +25,12 @@ export async function initMcp(): Promise<void> {
         ["/home/ubuntu/mcp-servers/src/filesystem/dist/index.js", "/home/ubuntu/gravity-claw"]
     );
 
+    // 3. Upstash Context7 Server (Semantic search/cache)
+    await connectMcpServer(
+        "context7",
+        "npx",
+        ["-y", "@upstash/context7-mcp@latest"]
+    );
+
     console.log("  ✅ MCP: Bridge active with connected servers.");
 }
