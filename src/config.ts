@@ -62,6 +62,10 @@ export const MAX_AGENT_ITERATIONS = parseInt(
     10
 );
 
+// ── Vector Memory (Qdrant) ──────────────────────────────
+export const QDRANT_URL = optionalEnv("QDRANT_URL", "http://localhost:6333");
+export const VECTOR_MEMORY_ENABLED = optionalEnv("VECTOR_MEMORY_ENABLED", "true") === "true";
+
 // ── Logging ─────────────────────────────────────────────
 export function logConfig(): void {
     console.log("┌─────────────────────────────────────────────────┐");
@@ -71,6 +75,7 @@ export function logConfig(): void {
     console.log(`│  Model:       ${LLM_MODEL.padEnd(33)}│`);
     console.log(`│  Max iters:   ${String(MAX_AGENT_ITERATIONS).padEnd(33)}│`);
     console.log(`│  Allowed IDs: ${ALLOWED_USER_IDS.join(", ").padEnd(33)}│`);
+    console.log(`│  Vector Mem:  ${QDRANT_URL.padEnd(33)}│`);
     console.log("│  Web server:  NONE (Telegram polling)           │");
     console.log("└─────────────────────────────────────────────────┘");
 }

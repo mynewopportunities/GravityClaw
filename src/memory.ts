@@ -10,7 +10,39 @@ import { db } from "./db.js";
 
 type ChatMessage = OpenAI.ChatCompletionMessageParam;
 
-const MAX_HISTORY = 40; // Max raw messages to load per chat
+const MAX_HISTORY = 30; // Max raw messages to load per chat
+
+// ── Long-term Memory: Summaries ──────────────────────────
+export function getChatSummary(chatId: string | number): string | null {
+    const cid = String(chatId);
+    const row = db.prepare("SELECT summary FROM chat_summaries WHERE chat_id = ?").get(cid) as any;
+    return row?.summary || null;
+}
+
+export function updateChatSummary(chatId: string | number, newSummary: string): void {
+    const cid = String(chatId);
+    db.prepare(`
+        INSERT INTO chat_summaries (chat_id, summary, updated_at)
+        VALUES (?, ?, unixepoch())
+        ON CONFLICT(chat_id) DO UPDATE SET summary = EXCLUDED.summary, updated_at = unixepoch()
+    `).run(cid, newSummary);
+}
+
+// ── Long-term Memory: Facts ──────────────────────────────
+export function getUserFacts(chatId: string | number): string[] {
+    const cid = String(chatId);
+    const rows = db.prepare("SELECT fact FROM user_facts WHERE chat_id = ? ORDER BY created_at DESC").all(cid) as any[];
+    return rows.map(r => r.fact);
+}
+
+export function saveUserFact(chatId: string | number, fact: string): void {
+    const cid = String(chatId);
+    db.prepare("INSERT INTO user_facts (chat_id, fact) VALUES (?, ?)").run(cid, fact);
+}
+
+export function deleteUserFact(chatId: string | number, factId: number): void {
+    db.prepare("DELETE FROM user_facts WHERE id = ?").run(factId);
+}
 
 // ── Load history for a chat ───────────────────────────────
 export function loadHistory(chatId: string | number): ChatMessage[] {

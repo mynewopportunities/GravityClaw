@@ -27,3 +27,19 @@ yarn-error.log*
 # OS Files
 .DS_Store
 Thumbs.db
+
+# WhatsApp Session (auth credentials — never commit these)
+auth_info_baileys/
+wa_session/
+*.session
+
+# Test scripts (local only)
+test-*.ts
+list-*.ts
+fix-*.js
+migrate-*.js
+
+# Temp audio files
+*.mp3
+*.ogg
+*.wav

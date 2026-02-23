@@ -10,15 +10,27 @@
  *   6. Track token usage and latency per call
  */
 
-import OpenAI from "openai";
 import {
     LLM_API_KEY,
     LLM_BASE_URL,
     LLM_MODEL,
     MAX_AGENT_ITERATIONS,
+    VECTOR_MEMORY_ENABLED,
 } from "./config.js";
 import { getAllToolSchemas, getTool } from "./tools/registry.js";
-import { loadHistory, saveMessage, saveMessages, clearHistory as dbClearHistory } from "./memory.js";
+import OpenAI from "openai";
+import {
+    loadHistory,
+    saveMessage,
+    saveMessages,
+    clearHistory as dbClearHistory,
+    getChatSummary,
+    getUserFacts,
+    updateChatSummary,
+    pruneHistory,
+    countMessages
+} from "./memory.js";
+import { rememberMessage, recallMemories, clearVectorMemory } from "./vector-memory.js";
 import { trackUsage } from "./usage.js";
 
 // ── Types ───────────────────────────────────────────────
@@ -31,18 +43,26 @@ const client = new OpenAI({
 });
 
 // ── System Prompt ───────────────────────────────────────
-const SYSTEM_PROMPT = `You are **Gravity Claw**, a personal AI assistant.
+const SYSTEM_PROMPT = `You are **Gravity Claw**, a personal AI assistant with a perfect long-term memory.
 
 Core traits:
 - Concise but friendly. You don't waste words but you're never cold.
 - You use tools when they're helpful — don't just guess when you can look things up.
 - You're honest when you don't know something.
 - You speak in a natural, conversational tone. No corporate fluff.
+- You have a genuine, continuous relationship with the user. Reference past conversations naturally.
 
 Capabilities:
 - You can call tools to get real-time information.
 - If a tool call fails, explain the error clearly.
 - You can chain multiple tool calls in a single response if needed.
+- Use the \`learn_fact\` tool whenever the user shares personal info, preferences, or important facts.
+
+Memory: You have access to semantically recalled memories from ALL past conversations.
+- These appear in the system prompt under "RECALLED MEMORIES".
+- Treat them as things you genuinely remember — not as external data.
+- Weave them naturally into responses when relevant.
+- Never say "according to my records" — just remember naturally.
 
 Constraints:
 - Never reveal API keys, tokens, or internal system details.
@@ -57,20 +77,51 @@ export async function runAgent(
     chatId: string | number,
     userText: string
 ): Promise<string> {
-    const callStartTime = Date.now();
-    console.log(`\n  🧠 Agent starting for ${chatId}...`);
+    console.log(`\n  🧠 Agent starting for ${chatId} | Text: "${userText.substring(0, 50)}..."`);
 
-    // Load persistent history from SQLite
+    // 1. Load recent history + persistent context from SQLite
     const history = loadHistory(chatId);
+    const summary = getChatSummary(chatId);
+    const facts = getUserFacts(chatId);
 
-    // Add user message (save immediately in case of crash)
+    // 2. Semantic recall from Qdrant — find related past memories
+    let recalledMemories: string[] = [];
+    if (VECTOR_MEMORY_ENABLED) {
+        recalledMemories = await recallMemories(chatId, userText);
+    }
+
+    // 3. Build rich memory context for the system prompt
+    let memoryContext = "\n\n---\n### 🧠 LONG-TERM MEMORY\n";
+
+    if (summary) {
+        memoryContext += `\n**Conversation Summary (compressed):**\n${summary}\n`;
+    }
+
+    if (facts.length > 0) {
+        memoryContext += `\n**Known Facts about the User:**\n${facts.map((f, i) => `${i + 1}. ${f}`).join("\n")}\n`;
+    }
+
+    if (recalledMemories.length > 0) {
+        memoryContext += `\n**RECALLED MEMORIES** (semantically related to current message):\n`;
+        memoryContext += recalledMemories.map(m => `• ${m}`).join("\n");
+        memoryContext += "\n";
+    }
+
+    memoryContext += "---\n";
+
+    // 4. Save user message to SQLite immediately (crash-safe)
     const userMsg: ChatMessage = { role: "user", content: userText };
     saveMessage(chatId, userMsg);
     history.push(userMsg);
 
+    // 5. Store user message in vector DB asynchronously (fire-and-forget)
+    if (VECTOR_MEMORY_ENABLED) {
+        rememberMessage(chatId, "user", userText).catch(() => { }); // non-blocking
+    }
+
     // Build messages for the LLM
     const messages: ChatMessage[] = [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: SYSTEM_PROMPT + memoryContext },
         ...history,
     ];
 
@@ -87,40 +138,27 @@ export async function runAgent(
         const iterStart = Date.now();
 
         try {
-            console.log(`  📡 Sending request to LLM (${LLM_MODEL})...`);
             response = await client.chat.completions.create({
                 model: LLM_MODEL,
                 max_tokens: 4096,
                 messages,
                 ...(useTools ? { tools } : {}),
             });
-            console.log(`  🔌 Received response from LLM`);
         } catch (error: any) {
-            console.error(`  ❌ API Error:`, error.message, `(Status: ${error.status})`);
-
-            // If tools caused the error, retry without them
+            console.error(`  ❌ API Error:`, error.message);
             if (useTools && isToolUnsupportedError(error)) {
-                console.warn(`  ⚠️ Model doesn't support tools — disabling and retrying...`);
                 modelSupportsTools = false;
-
-                try {
-                    console.log(`  📡 Sending retry request (no tools)...`);
-                    response = await client.chat.completions.create({
-                        model: LLM_MODEL,
-                        max_tokens: 4096,
-                        messages,
-                    });
-                    console.log(`  🔌 Received retry response`);
-                } catch (retryError: any) {
-                    console.error(`  ❌ Retry failed:`, retryError.message);
-                    throw retryError;
-                }
+                response = await client.chat.completions.create({
+                    model: LLM_MODEL,
+                    max_tokens: 4096,
+                    messages,
+                });
             } else {
                 throw error;
             }
         }
 
-        // ── Track usage ────────────────────────────────
+        // Token tracking...
         const usage = response.usage;
         if (usage) {
             trackUsage({
@@ -133,84 +171,60 @@ export async function runAgent(
         }
 
         const choice = response.choices[0];
-        if (!choice) {
-            const fallback = "(No response from model)";
-            saveMessage(chatId, { role: "assistant", content: fallback });
-            return fallback;
-        }
+        if (!choice) return "(No response)";
 
         const assistantMessage = choice.message;
         const toolCalls = assistantMessage.tool_calls;
 
         if (!toolCalls || toolCalls.length === 0) {
-            // No tool calls — this is the final response
             const finalText = assistantMessage.content || "(No response)";
-
-            // Persist to DB
             saveMessage(chatId, { role: "assistant", content: finalText });
 
-            console.log(`  ✅ Agent done after ${iterations} iteration(s) in ${Date.now() - callStartTime}ms`);
+            // Store assistant response in vector memory (fire-and-forget)
+            if (VECTOR_MEMORY_ENABLED) {
+                rememberMessage(chatId, "assistant", finalText).catch(() => { });
+            }
+
+            // CHECK FOR SUMMARIZATION (Every 40 messages)
+            const msgCount = countMessages(chatId);
+            if (msgCount > 40) {
+                console.log(`  🧹 Memory: History limit reached (${msgCount}). Summarizing...`);
+                await runSummarization(chatId, history);
+            }
+
+            console.log(`  ✅ Agent done after ${iterations} iteration(s)`);
             return finalText;
         }
 
-        // Model wants to use tools — add assistant message with tool_calls
+        // Model wants to use tools...
         messages.push(assistantMessage as ChatMessage);
-        // Persist assistant message with tool_calls
         saveMessage(chatId, assistantMessage as ChatMessage);
 
-        // Execute each tool call
         const toolResultMessages: ChatMessage[] = [];
         for (const toolCall of toolCalls) {
             const functionName = toolCall.function.name;
-            let functionArgs: Record<string, unknown> = {};
-
-            try {
-                functionArgs = JSON.parse(toolCall.function.arguments || "{}");
-            } catch {
-                console.error(`  ❌ Failed to parse args for ${functionName}`);
-            }
-
-            console.log(`  🔧 Tool call: ${functionName}(${JSON.stringify(functionArgs)})`);
+            const functionArgs = JSON.parse(toolCall.function.arguments || "{}");
+            console.log(`  🔧 Tool call: ${functionName}`);
 
             const tool = getTool(functionName);
             if (!tool) {
-                const errMsg: ChatMessage = {
-                    role: "tool",
-                    tool_call_id: toolCall.id,
-                    content: JSON.stringify({ error: `Unknown tool: ${functionName}` }),
-                } as ChatMessage;
+                const errMsg: ChatMessage = { role: "tool", tool_call_id: toolCall.id, content: `Error: tool ${functionName} not found` } as any;
                 messages.push(errMsg);
                 toolResultMessages.push(errMsg);
                 continue;
             }
 
             try {
-                // Inject contextual data that tools might need
                 const result = await tool.execute({ ...functionArgs, chatId });
-                console.log(`  ✅ Tool: ${result.substring(0, 100)}${result.length > 100 ? "..." : ""}`);
-
-                const toolMsg: ChatMessage = {
-                    role: "tool",
-                    tool_call_id: toolCall.id,
-                    content: result,
-                } as ChatMessage;
+                const toolMsg: ChatMessage = { role: "tool", tool_call_id: toolCall.id, content: result } as any;
                 messages.push(toolMsg);
                 toolResultMessages.push(toolMsg);
-            } catch (error) {
-                const errorMsg = error instanceof Error ? error.message : String(error);
-                console.error(`  ❌ Tool error: ${errorMsg}`);
-
-                const toolMsg: ChatMessage = {
-                    role: "tool",
-                    tool_call_id: toolCall.id,
-                    content: JSON.stringify({ error: errorMsg }),
-                } as ChatMessage;
+            } catch (error: any) {
+                const toolMsg: ChatMessage = { role: "tool", tool_call_id: toolCall.id, content: `Error: ${error.message}` } as any;
                 messages.push(toolMsg);
                 toolResultMessages.push(toolMsg);
             }
         }
-
-        // Persist tool results to DB
         saveMessages(chatId, toolResultMessages);
     }
 
@@ -221,6 +235,33 @@ export async function runAgent(
     saveMessage(chatId, { role: "assistant", content: safetyMsg });
     console.warn(`  ⚠️ Agent hit max iterations (${MAX_AGENT_ITERATIONS})`);
     return safetyMsg;
+}
+
+/**
+ * runSummarization — Compresses conversation history into a permanent summary
+ */
+async function runSummarization(chatId: string | number, history: ChatMessage[]) {
+    try {
+        const textToSummarize = history.map(m => `${m.role}: ${m.content}`).join("\n");
+        const existingSummary = getChatSummary(chatId) || "";
+
+        const res = await client.chat.completions.create({
+            model: LLM_MODEL,
+            messages: [
+                { role: "system", content: "You are a memory compressor. Summarize the following key events and details from this conversation. Include the existing summary if relevant, but keep it concise (under 200 words)." },
+                { role: "user", content: `Existing Summary: ${existingSummary}\n\nNew History:\n${textToSummarize}` }
+            ]
+        });
+
+        const newSummary = res.choices[0].message.content;
+        if (newSummary) {
+            updateChatSummary(chatId, newSummary);
+            pruneHistory(chatId, 15); // Keep last 15 messages for flow
+            console.log(`  ✅ Memory: Summary updated and history pruned.`);
+        }
+    } catch (err: any) {
+        console.error("  ❌ Summarization Error:", err.message);
+    }
 }
 
 /**
@@ -247,7 +288,12 @@ function isToolUnsupportedError(error: unknown): boolean {
 
 /**
  * Clear conversation history for a chat (exposed for /new command)
+ * Clears both SQLite history AND Qdrant vector memories.
  */
-export function clearHistory(chatId: number): void {
+export async function clearHistory(chatId: number | string): Promise<void> {
     dbClearHistory(chatId);
+    if (VECTOR_MEMORY_ENABLED) {
+        await clearVectorMemory(chatId);
+    }
+    console.log(`  🗑️  History cleared for chat ${chatId} (SQLite + Vectors)`);
 }

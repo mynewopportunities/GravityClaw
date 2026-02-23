@@ -14,6 +14,7 @@ import { getToolCount } from "./tools/registry.js";
 import { bot } from "./bot.js";
 import { initScheduler } from "./scheduler.js";
 import { initMcp } from "./mcp/index.js";
+import { initVectorMemory } from "./vector-memory.js";
 
 // ── Initialize SQLite DB (creates tables if needed) ──────
 import "./db.js";
@@ -35,8 +36,12 @@ async function main(): Promise<void> {
     console.log(`  📦 ${getToolCount()} tool(s) registered`);
     console.log("");
 
+    // Initialize Vector Memory (Qdrant)
+    await initVectorMemory();
+
     // Start background scheduler
     initScheduler();
+
 
     // Initialize MCP Bridge
     await initMcp();

@@ -19,5 +19,8 @@ import "./file-ops.js";
 // ── Phase 4: Reminders + Scheduled Tasks ──────────────────
 import "./reminders.js";
 
-// ── Phase 5 (coming): MCP Bridge ─────────────────────────
+// ── Phase 5: Long-term Memory & Stats ────────────────────
+import "./memory-tools.js";
+
+// ── Phase 6 (coming): MCP Bridge ─────────────────────────
 // import "./mcp-bridge.js";

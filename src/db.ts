@@ -58,6 +58,29 @@ db.exec(`
     );
 
     CREATE INDEX IF NOT EXISTS idx_tasks_time ON scheduled_tasks(scheduled_at, is_completed);
+
+    CREATE TABLE IF NOT EXISTS user_settings (
+        chat_id     TEXT    NOT NULL,
+        key         TEXT    NOT NULL,
+        value       TEXT    NOT NULL,
+        created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+        PRIMARY KEY (chat_id, key)
+    );
+
+    CREATE TABLE IF NOT EXISTS chat_summaries (
+        chat_id     TEXT    PRIMARY KEY,
+        summary     TEXT    NOT NULL,
+        updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS user_facts (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        chat_id     TEXT    NOT NULL,
+        fact        TEXT    NOT NULL,
+        created_at  INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_facts_chat ON user_facts(chat_id);
 `);
 
 console.log(`  💾 SQLite database ready at ${DB_PATH}`);
