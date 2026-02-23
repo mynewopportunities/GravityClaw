@@ -21,6 +21,7 @@ import { textToSpeech, isTTSAvailable } from "./tts.js";
 import { countMessages } from "./memory.js";
 import fs from "fs";
 import { runAgent } from "./agent.js";
+import { WHATSAPP_ALLOWED_NUMBERS } from "./config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AUTH_DIR = path.join(__dirname, "..", "wa_auth");
@@ -155,6 +156,14 @@ export async function initWhatsApp() {
             // We only process if it's NOT fromMe OR if it's the user in self-chat.
             const isUserInSelfChat = msg.key.fromMe && jid.includes(waClient.user.id.split(":")[0]);
             if (msg.key.fromMe && !isUserInSelfChat) {
+                continue;
+            }
+
+            // 3. WHITELIST CHECK (Safety for Clients)
+            // If the whitelist is NOT empty, verify the JID matches one of the allowed numbers
+            const isAllowed = WHATSAPP_ALLOWED_NUMBERS.some(num => jid.includes(num));
+            if (WHATSAPP_ALLOWED_NUMBERS.length > 0 && !isAllowed && !isUserInSelfChat) {
+                console.log(`  🚫 WhatsApp: Ignoring unwhitelisted number (${jid})`);
                 continue;
             }
 

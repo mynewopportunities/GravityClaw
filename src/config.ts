@@ -66,6 +66,13 @@ export const MAX_AGENT_ITERATIONS = parseInt(
 export const QDRANT_URL = optionalEnv("QDRANT_URL", "http://localhost:6333");
 export const VECTOR_MEMORY_ENABLED = optionalEnv("VECTOR_MEMORY_ENABLED", "true") === "true";
 
+// ── WhatsApp Whitelist ──────────────────────────────────
+const rawWaIds = optionalEnv("WHATSAPP_ALLOWED_NUMBERS", "");
+export const WHATSAPP_ALLOWED_NUMBERS: string[] = rawWaIds
+    .split(",")
+    .map((num) => num.trim())
+    .filter((num) => num.length > 0);
+
 // ── Logging ─────────────────────────────────────────────
 export function logConfig(): void {
     console.log("┌─────────────────────────────────────────────────┐");
@@ -75,6 +82,7 @@ export function logConfig(): void {
     console.log(`│  Model:       ${LLM_MODEL.padEnd(33)}│`);
     console.log(`│  Max iters:   ${String(MAX_AGENT_ITERATIONS).padEnd(33)}│`);
     console.log(`│  Allowed IDs: ${ALLOWED_USER_IDS.join(", ").padEnd(33)}│`);
+    console.log(`│  WA Whitelist: ${(WHATSAPP_ALLOWED_NUMBERS.length > 0 ? WHATSAPP_ALLOWED_NUMBERS.join(", ") : "EMPTY (BLOCKED)").padEnd(33)}│`);
     console.log(`│  Vector Mem:  ${QDRANT_URL.padEnd(33)}│`);
     console.log("│  Web server:  NONE (Telegram polling)           │");
     console.log("└─────────────────────────────────────────────────┘");
