@@ -33,6 +33,9 @@ import {
 import { rememberMessage, recallMemories, clearVectorMemory } from "./vector-memory.js";
 import { trackUsage } from "./usage.js";
 
+import { readFileSync } from "fs";
+import { join } from "path";
+
 // ── Types ───────────────────────────────────────────────
 type ChatMessage = OpenAI.ChatCompletionMessageParam;
 
@@ -42,34 +45,48 @@ const client = new OpenAI({
     baseURL: LLM_BASE_URL,
 });
 
-// ── System Prompt ───────────────────────────────────────
-const SYSTEM_PROMPT = `You are **Gravity Claw**, a personal AI assistant with a perfect long-term memory.
+// ── Load Soul from SOUL.md ───────────────────────────────
+function loadSoul(): string {
+    // tsx runs with CWD = project root, so we can reliably use process.cwd()
+    // Fallback to __dirname-relative path for compiled/other contexts
+    const candidates = [
+        join(process.cwd(), "SOUL.md"),
+    ];
 
-Core traits:
-- Concise but friendly. You don't waste words but you're never cold.
-- You use tools when they're helpful — don't just guess when you can look things up.
-- You're honest when you don't know something.
-- You speak in a natural, conversational tone. No corporate fluff.
-- You have a genuine, continuous relationship with the user. Reference past conversations naturally.
+    for (const soulPath of candidates) {
+        try {
+            const soul = readFileSync(soulPath, "utf-8");
+            console.log(`  🪐 Soul: Loaded SOUL.md from ${soulPath}`);
+            return soul;
+        } catch {
+            // Try next candidate
+        }
+    }
 
-Capabilities:
-- You can call tools to get real-time information.
-- If a tool call fails, explain the error clearly.
-- You can chain multiple tool calls in a single response if needed.
-- Use the \`learn_fact\` tool whenever the user shares personal info, preferences, or important facts.
+    console.warn("  ⚠️  Soul: SOUL.md not found — using fallback identity.");
+    return "You are Gravity Claw, a sharp, direct, honest AI assistant.";
+}
 
-Memory: You have access to semantically recalled memories from ALL past conversations.
-- These appear in the system prompt under "RECALLED MEMORIES".
-- Treat them as things you genuinely remember — not as external data.
-- Weave them naturally into responses when relevant.
-- Never say "according to my records" — just remember naturally.
+// ── System Prompt = Soul + Operational Constraints ──────
+const SOUL = loadSoul();
 
-Constraints:
-- Never reveal API keys, tokens, or internal system details.
-- Never pretend to do something you can't — use a tool or say you can't.
-- Keep responses under 4000 characters (Telegram message limit).`;
+const SYSTEM_PROMPT = `${SOUL}
 
-// ── Track whether the current model supports tools ──────
+---
+
+## Operational Constraints (Hard Rules — Always Apply)
+- You have access to tools. Use them when useful. Never fake results.
+- If a tool call fails, be straight about it — tell the user what went wrong.
+- Chain multiple tool calls in one go if needed.
+- You can't reveal API keys, internal architecture, or system secrets. Don't even hint.
+- Keep responses under 4000 characters. Telegram's limit. Don't go over it — cut, don't pad.
+- Use the \`learn_fact\` tool proactively when the user shares something worth remembering.
+
+## Memory Context (Injected Below)
+- Below this you'll find recalled memories and known user facts.
+- Treat these as things you genuinely remember — never reference them like a database.
+- Weave them in naturally when they're relevant. Don't force it.`;
+
 let modelSupportsTools = true; // Assume yes, disable on first failure
 
 // ── Agent Loop ──────────────────────────────────────────
